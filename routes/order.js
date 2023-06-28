@@ -1,12 +1,17 @@
+/* eslint-disable no-underscore-dangle */
 const express = require("express");
+
 const router = express.Router();
 const Order = require("../models/Order");
 const Cart = require("../models/Cart");
+const transporter = require("../config/gmail");
+const User = require("../models/User");
 const verifyToken = require("../middleware/verifyToken");
 
 router.post("/:userId/place-order", verifyToken, async (req, res) => {
-  const userId = req.params.userId;
+  const { userId } = req.params;
   const { shippingAddress } = req.body;
+  console.log("---> ", req.body);
   try {
     const cart = await Cart.findOne({ userId }).populate("products.productId");
     if (!cart) {
@@ -24,6 +29,7 @@ router.post("/:userId/place-order", verifyToken, async (req, res) => {
       })),
       totalPrice: cart.products.reduce(
         (total, item) => total + item.productId.price * item.quantity,
+        // eslint-disable-next-line comma-dangle
         0
       ),
     });
@@ -31,10 +37,32 @@ router.post("/:userId/place-order", verifyToken, async (req, res) => {
     // removing the cart products
     cart.products = [];
     await cart.save();
-    res.status(201).json(order);
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Get the user's email
+    const userEmail = user.email;
+    const mailOptions = {
+      from: "humazahoor786@gmail.com",
+      to: userEmail,
+      subject: "Order Confirmation ",
+      text: "Your order has been placed successfully!",
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error(error);
+      } else {
+        console.log("Email sent: ", info.response);
+      }
+    });
+    return res.status(201).json(order);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Internal server error" });
+    return res
+      .status(500)
+      .json({ message: "Internal server error", errorMessage: error });
   }
 });
 

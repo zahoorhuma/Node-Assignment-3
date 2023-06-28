@@ -41,6 +41,8 @@ router.post("/:userId/add-products", verifyToken, async (req, res) => {
           products: [{ productId, quantity }],
         });
         const savedCart = await newCart.save();
+        product.availableQuantity -= quantity;
+        const updatedProduct = await product.save();
         res.status(201).json(savedCart);
       }
     } else {
